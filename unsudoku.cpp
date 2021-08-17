@@ -31,19 +31,46 @@ using std::make_shared;
  *
  * 算法概要：
  *
- * 基本上是“穷举法”。 把每一个单元格可填写的数字，逐一枚举一遍，直到找到正确的解。
+ * <阶段一>
+ * 先搜索数独矩阵中，所有“有唯一解”的空白单元格。然后将“唯一解”的空白单元格填回到数独矩阵中，
+ * 然后再次重新搜索有“有唯一解”的空白单元格，以此类推，直到找到所有的解。
  *
+ * 对于一般难度的数独矩阵，用此方法就可以解开了。
+ *
+ * 对于较高难度的数独矩阵，用此方法解不开时，则进入到下一阶段，
+ *
+ * <阶段二>
+ * 此阶段基本上是“穷举法”。 把每一个单元格可填写的数字，逐一枚举一遍，直到找到正确的解。
+ *
+ * 这里使用的是简单的“直接穷举”，理论上可以进一步优化，例如：
+ * 将“解”最少的单元格作为最后穷举的对象，而将“解”最多的单元格，作为最先穷举的对象。
+ * 这样可以加快穷举的速度。（其实人脑在解题时，应该也是这个思路）。
+ *
+ * 这里并没有对穷举法进行进一步的优化，因为，即便是那些号称“骨灰级”难度的数独矩阵，辅以最烂的穷举算法，
+ * 在现代的计算机面前，也是渣渣----解开它只需要不到30秒。
+ *
+ * 如果是优化后的穷举法，猜测“骨灰级难度”的数独矩阵，解算时间或许只需要10秒。
+ *
+ * 第二阶段算法，如果你有更好的想法，欢迎与我交流：48746190@qq.com
  */
 
-//这是一个4x4数独游戏的例子，宫的维度是2x2
-const int DIM_X = 4, DIM_Y = 4, DIM_N_MAX = 4, SUB_DIM_X = 2, SUB_DIM_Y = 2;
-int dimTpl[DIM_X][DIM_Y] = { { 2, 0, 0, 3, }, { 3, 0, 2, 1 }, { 0, 2, 3, 0 }, { 0, 0, 0, 2 }, };
+/*
+ //这是一个4x4数独游戏的例子，宫的维度是2x2
+ const int DIM_X = 4, DIM_Y = 4, DIM_N_MAX = 4, SUB_DIM_X = 2, SUB_DIM_Y = 2;
+ int dimTpl[DIM_X][DIM_Y] = { { 2, 0, 0, 3, }, { 3, 0, 2, 1 }, { 0, 2, 3, 0 }, { 0, 0, 0, 2 }, };
+ */
 
 /*
  //这是一个6x6数独游戏的例子，宫的维度是3x2
  const int DIM_X = 6, DIM_Y = 6, DIM_N_MAX = 6, SUB_DIM_X = 3, SUB_DIM_Y = 2;
  int dimTpl[DIM_X][DIM_Y] = { { 5, 0, 6, 0, 3, 0, }, { 2, 0, 1, 0, 0, 0, }, { 0, 0, 0, 2, 0, 3, }, { 3, 0, 4, 0, 6, 0, },
  { 4, 0, 0, 6, 0, 5, }, { 0, 5, 0, 3, 0, 4, }, };*/
+
+//这是这是一个9x9数独游戏的例子，宫的维度是3x3。这个矩阵属于“一般”难度。
+const int DIM_X = 9, DIM_Y = 9, DIM_N_MAX = 9, SUB_DIM_X = 3, SUB_DIM_Y = 3;
+int dimTpl[DIM_X][DIM_Y] = { { 0, 0, 1, 0, 0, 4, 0, 0, 0 }, { 0, 0, 7, 0, 0, 9, 0, 0, 0 }, { 0, 0, 6, 0, 7, 0, 1, 5, 8 }, { 7, 5, 0, 9, 0,
+		0, 0, 0, 0 }, { 0, 0, 9, 0, 2, 0, 5, 0, 0 }, { 0, 0, 0, 0, 0, 1, 0, 9, 6 }, { 1, 3, 5, 0, 9, 0, 6, 0, 0 }, { 0, 0, 0, 8, 0, 0, 4, 0,
+		0 }, { 0, 0, 0, 3, 0, 0, 2, 0, 0 }, };
 
 /*//这是一个9x9数独游戏的例子，宫的维度是3x3。（网上搜的号称“骨灰级”难度的数独矩阵）
  const int DIM_X = 9, DIM_Y = 9, DIM_N_MAX = 9, SUB_DIM_X = 3, SUB_DIM_Y = 3;
@@ -169,14 +196,32 @@ shared_ptr<map<int, shared_ptr<vector<int>>>> totalUnfilled(int dim[][DIM_X])
 void printDim(int dim[][DIM_X], int ax = -1, int ay = -1)
 {
 //打印结果
-	for (int y = 0; y < DIM_Y; y++)
+	for (int y = 0; y <= DIM_Y; y++)
 	{
-		for (int x = 0; x < DIM_X; x++)
+		for (int x = 0; x <= DIM_X; x++)
 		{
+			if (x == 0 && y == 0)
+			{
+				cout << "  +  ";
+				continue;
+			}
+			if (y == 0)
+			{
+				cout << "(x" << x << ") ";
+				continue;
+			}
+
+			if (x == 0)
+			{
+				cout << "(y" << y << ")";
+				continue;
+			}
+
+			int di = dim[y - 1][x - 1];
 			if (ax >= 0 && ay >= 0 && ax == x && ay == y)
-				cout << " [" << ((dim[y][x]) == 0 ? "*" : std::to_string(dim[y][x])) << "] ";
+				cout << " [" << (di == 0 ? "*" : std::to_string(di)) << "] ";
 			else
-				cout << "  " << ((dim[y][x]) == 0 ? "*" : std::to_string(dim[y][x])) << "  ";
+				cout << "  " << (di == 0 ? "*" : std::to_string(di)) << "  ";
 		}
 		cout << "\n";
 	}
@@ -271,29 +316,72 @@ int main()
 	printDim(dimVal);
 
 	auto uf = totalUnfilled(dimVal);
-	cout << "数独矩阵中共有" << uf->size() << "个空白，需要计算。\n"
-			"每个空白，可填写的合法数据，分析如下：\n"
-			"xy坐标     有效数据\n" << std::flush;
+	cout << "当前数独矩阵中共有" << uf->size() << "个空白，需要计算。\n\n"
+			"每个空白单元格，可填写的合法数据，分析如下：\n" << std::flush;
 
 //分析出矩阵中每一个“空白”，允许填写哪些数字
-	for (int y = 0; y < DIM_Y; y++)
+	shared_ptr<map<int, shared_ptr<vector<int>>>> mapUniq = make_shared<map<int, shared_ptr<vector<int>>>>();
+	bool hasUniq = true;
+
+	int uCnt = 0;
+	while (true)
 	{
-		for (int x = 0; x < DIM_X; x++)
+		cout << "\n正在进行第 " << ++uCnt << " 轮唯一解分析..\n" << std::flush;
+
+		for (int y = 0; y < DIM_Y; y++)
 		{
-			if (dimTpl[y][x] == 0)
+			for (int x = 0; x < DIM_X; x++)
 			{
-				auto v = genV();
-				calcXYR(x, y, v, dimTpl);
+				if (dimTpl[y][x] == 0)
+				{
+					auto v = genV();
+					calcXYR(x, y, v, dimTpl);
 
-				reallocV(v);
+					reallocV(v);
 
-				int key = KEY(x, y);
-				uf->at(key)->assign(v->begin(), v->end());
+					int key = KEY(x, y);
 
-				cout << "xy:" << key << "  =>  ";
-				printV(uf->at(key));
+					if (v->size() == 1)
+					{
+						std::pair<int, shared_ptr<vector<int>>> kv(key, make_shared<vector<int>>());
+						mapUniq->insert(kv);
+						mapUniq->at(key)->push_back(v->front());
+					}
+
+					uf->at(key)->assign(v->begin(), v->end());
+
+					cout << "x" << (x + 1) << ",y" << (y + 1) << " 的解为=>  ";
+					printV(uf->at(key));
+				}
 			}
 		}
+
+		if (mapUniq->size() > 0)
+		{
+			cout << "\n本轮共找到" << mapUniq->size() << "个，有唯一解的单元格，分别是：\n" << std::flush;
+
+			for (auto iter = mapUniq->begin(); iter != mapUniq->end(); iter++)
+			{
+				int key = iter->first;
+				int val = iter->second->front();
+				int tx = key / 10 - 1;
+				int ty = (key % 10) - 1;
+				dimTpl[ty][tx] = val;
+				cout << "x" << tx << ",y" << ty << " 解为=>  " << val << "\n" << std::flush;
+			}
+			mapUniq->clear();
+
+			cout << "\n将所有唯一解的单元格，填写回数据矩阵后，结果为：\n" << std::flush;
+			printDim(dimTpl);
+		}
+		else
+			break;
+	}
+
+	if (testXYR(SUB_DIM_X, SUB_DIM_Y, dimTpl))
+	{
+		cout << "数独矩阵求解完成。";
+		return 0;
 	}
 
 	bool dir = true;
